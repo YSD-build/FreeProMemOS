@@ -1,0 +1,17 @@
+
+*.o
+*.bin
+*.iso
+*.elf
+*.a
+*.so
+*.elf32
+kernel.bin
+boot/boot.bin
+iso/boot/kernel.bin
+iso/boot/isolinux/*
+FreeProMemOS.iso
+.DS_Store
+*.swp
+*.swo
+*~
