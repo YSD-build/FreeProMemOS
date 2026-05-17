@@ -19,7 +19,7 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential bc bison flex libssl-dev libelf-dev dwarves pahole zstd kmod cpio rsync wget xz-utils gzip bzip2 grub2-common grub-pc-bin grub-efi-amd64-bin xorriso parted dosfstools
+        sudo apt-get install -y build-essential bc bison flex libssl-dev libelf-dev dwarves pahole zstd kmod cpio rsync wget xz-utils gzip bzip2 grub2-common grub-pc-bin grub-efi-amd64-bin xorriso parted dosfstools busybox
     
     - name: Download Kernel
       run: |
@@ -50,10 +50,8 @@ jobs:
     - name: Create Initramfs
       run: |
         mkdir -p iso/boot
-        wget -q https://busybox.net/downloads/binaries/1.36.1-x86_64-linux-musl/busybox
-        chmod +x busybox
         mkdir -p initramfs/bin
-        cp busybox initramfs/bin/
+        cp /usr/bin/busybox initramfs/bin/
         cd initramfs/bin
         for cmd in $(./busybox --list); do ln -sf busybox $cmd 2>/dev/null || true; done
         cd ../..
