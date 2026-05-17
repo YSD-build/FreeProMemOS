@@ -5,7 +5,7 @@ AS = nasm
 LD = ld
 QEMU = qemu-system-i386
 
-CFLAGS = -ffreestanding -m32 -fno-pic -fno-stack-protector -Wall -Wextra -I.
+CFLAGS = -ffreestanding -m32 -fno-pic -fno-stack-protector -Wall -Wextra -I. -Ikernel -Imm -Ifs -Isyscall -Ilibc
 LDFLAGS = -m elf_i386 -T linker.ld -nostdlib
 ASFLAGS = -f elf32
 

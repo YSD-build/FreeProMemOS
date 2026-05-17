@@ -7,7 +7,7 @@
 #include "mm.h"
 #include "process.h"
 #include "syscall.h"
-#include "../fs/vfs.h"
+#include "fs/vfs.h"
 
 void kernel_main() {
     vga_clear();
