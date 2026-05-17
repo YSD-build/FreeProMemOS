@@ -1,6 +1,6 @@
 
-#include &lt;stdint.h&gt;
-#include &lt;stddef.h&gt;
+#include <stdint.h>
+#include <stddef.h>
 #include "vga.h"
 #include "idt.h"
 #include "isr.h"

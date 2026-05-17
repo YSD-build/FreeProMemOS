@@ -1,19 +1,19 @@
 
 #include "vfs.h"
 #include "../mm/kheap.h"
-#include &lt;string.h&gt;
+#include <string.h>
 
 vfs_node_t *vfs_root = 0;
 
 void vfs_init(void) {
     vfs_root = (vfs_node_t*)kmalloc(sizeof(vfs_node_t));
-    strcpy(vfs_root-&gt;name, "/");
-    vfs_root-&gt;flags = FS_DIRECTORY;
-    vfs_root-&gt;inode = 0;
-    vfs_root-&gt;length = 0;
-    vfs_root-&gt;child = 0;
-    vfs_root-&gt;next = 0;
-    vfs_root-&gt;parent = 0;
+    strcpy(vfs_root->name, "/");
+    vfs_root->flags = FS_DIRECTORY;
+    vfs_root->inode = 0;
+    vfs_root->length = 0;
+    vfs_root->child = 0;
+    vfs_root->next = 0;
+    vfs_root->parent = 0;
 }
 
 vfs_node_t *vfs_find(const char *path) {

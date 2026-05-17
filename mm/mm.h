@@ -2,8 +2,8 @@
 #ifndef MM_H
 #define MM_H
 
-#include &lt;stdint.h&gt;
-#include &lt;stddef.h&gt;
+#include <stdint.h>
+#include <stddef.h>
 
 #define PAGE_SIZE 4096
 #define PAGE_PRESENT 0x1

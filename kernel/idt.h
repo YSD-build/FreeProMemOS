@@ -2,7 +2,7 @@
 #ifndef IDT_H
 #define IDT_H
 
-#include &lt;stdint.h&gt;
+#include <stdint.h>
 
 struct idt_entry {
     uint16_t base_low;

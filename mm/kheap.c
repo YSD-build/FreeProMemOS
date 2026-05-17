@@ -10,8 +10,8 @@ void *kmalloc(size_t size) {
 }
 
 void *kmalloc_a(size_t size) {
-    if (placement_address &amp; 0xFFFFF000) {
-        placement_address &amp;= 0xFFFFF000;
+    if (placement_address & 0xFFFFF000) {
+        placement_address &= 0xFFFFF000;
         placement_address += 0x1000;
     }
     void *tmp = (void*)placement_address;
@@ -27,8 +27,8 @@ void *kmalloc_p(size_t size, uint32_t *phys) {
 }
 
 void *kmalloc_ap(size_t size, uint32_t *phys) {
-    if (placement_address &amp; 0xFFFFF000) {
-        placement_address &amp;= 0xFFFFF000;
+    if (placement_address & 0xFFFFF000) {
+        placement_address &= 0xFFFFF000;
         placement_address += 0x1000;
     }
     *phys = placement_address;

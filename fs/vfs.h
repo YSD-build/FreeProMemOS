@@ -2,8 +2,8 @@
 #ifndef VFS_H
 #define VFS_H
 
-#include &lt;stdint.h&gt;
-#include &lt;stddef.h&gt;
+#include <stdint.h>
+#include <stddef.h>
 
 #define FS_FILE 0x1
 #define FS_DIRECTORY 0x2

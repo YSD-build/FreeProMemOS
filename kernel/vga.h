@@ -2,8 +2,8 @@
 #ifndef VGA_H
 #define VGA_H
 
-#include &lt;stdint.h&gt;
-#include &lt;stddef.h&gt;
+#include <stdint.h>
+#include <stddef.h>
 
 enum vga_color {
     VGA_COLOR_BLACK = 0,
