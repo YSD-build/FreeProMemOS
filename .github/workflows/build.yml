@@ -51,15 +51,42 @@ jobs:
       run: |
         mkdir -p iso/boot
         mkdir -p initramfs/bin
+        mkdir -p initramfs/dev
+        mkdir -p initramfs/proc
+        mkdir -p initramfs/sys
+        mkdir -p initramfs/sbin
+        mkdir -p initramfs/usr/bin
+        mkdir -p initramfs/usr/sbin
         cp /usr/bin/busybox initramfs/bin/
+        cp /usr/bin/busybox initramfs/sbin/
+        cp /usr/bin/busybox initramfs/usr/bin/
+        cp /usr/bin/busybox initramfs/usr/sbin/
         for cmd in $(/usr/bin/busybox --list); do ln -sf /bin/busybox initramfs/bin/$cmd 2>/dev/null || true; done
-        printf '#!/bin/sh\nmount -t proc proc /proc\nmount -t sysfs sysfs /sys\nmount -t devtmpfs devtmpfs /dev\n\necho ""\necho "FreeProMemOS"\necho "============"\necho ""\necho "Kernel: $(uname -r)"\necho "Architecture: $(uname -m)"\necho ""\n/bin/sh\n' > initramfs/init
+        for cmd in $(/usr/bin/busybox --list); do ln -sf /sbin/busybox initramfs/sbin/$cmd 2>/dev/null || true; done
+        for cmd in $(/usr/bin/busybox --list); do ln -sf /usr/bin/busybox initramfs/usr/bin/$cmd 2>/dev/null || true; done
+        for cmd in $(/usr/bin/busybox --list); do ln -sf /usr/sbin/busybox initramfs/usr/sbin/$cmd 2>/dev/null || true; done
+        cat > initramfs/init << 'EOF'
+#!/bin/sh
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+
+echo ""
+echo "FreeProMemOS"
+echo "============"
+echo ""
+echo "Kernel: $(uname -r)"
+echo "Architecture: $(uname -m)"
+echo ""
+exec /bin/sh
+EOF
         chmod +x initramfs/init
         ls -la initramfs/
         ls -la initramfs/bin/
+        ls -la initramfs/sbin/
         cat initramfs/init
         cd initramfs
-        find . -type f -o -type l | cpio -o -H newc | gzip > ../iso/boot/initrd.img
+        find . -print0 | cpio --null -o --format=newc | gzip > ../iso/boot/initrd.img
     
     - name: Create ISO
       run: |
@@ -67,7 +94,15 @@ jobs:
         mkdir -p iso/boot/kernel
         cp linux-${{ env.LINUX_VERSION }}/arch/x86/boot/bzImage iso/boot/kernel/vmlinuz
         cp linux-${{ env.LINUX_VERSION }}/System.map iso/boot/kernel/System.map
-        printf 'set timeout=5\nset default=0\n\nmenuentry "FreeProMemOS" {\n    linux /boot/kernel/vmlinuz root=/dev/ram0 rw\n    initrd /boot/initrd.img\n}\n' > iso/boot/grub/grub.cfg
+        cat > iso/boot/grub/grub.cfg << 'EOF'
+set timeout=5
+set default=0
+
+menuentry "FreeProMemOS" {
+    linux /boot/kernel/vmlinuz root=/dev/ram0 rw
+    initrd /boot/initrd.img
+}
+EOF
         cd iso
         grub-mkrescue -o FreeProMemOS-${{ env.LINUX_VERSION }}.iso .
     
