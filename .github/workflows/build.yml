@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Install dependencies
       run: sudo apt-get update &amp;&amp; sudo apt-get install -y gcc-multilib nasm qemu-system-x86 xorriso isolinux syslinux-common
@@ -23,7 +23,7 @@ jobs:
         ls -la
         
     - name: Upload ISO
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: FreeProMemOS
+        name: FreeProMemOS-iso
         path: FreeProMemOS.iso
