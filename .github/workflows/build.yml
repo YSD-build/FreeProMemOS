@@ -4,28 +4,154 @@ name: Build FreeProMemOS
 on:
   push:
     branches: [ main, master ]
+    tags:
+      - 'v*'
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch:
+
+env:
+  LINUX_VERSION: "6.8.12"
+  ARCH: "x86_64"
 
 jobs:
-  build:
+  build-kernel:
     runs-on: ubuntu-latest
+    outputs:
+      kernel_version: ${{ steps.version.outputs.kernel_version }}
     
     steps:
     - uses: actions/checkout@v5
     
-    - name: Install dependencies
+    - name: Set Kernel Version
+      id: version
+      run: echo "kernel_version=${{ env.LINUX_VERSION }}" >> $GITHUB_OUTPUT
+    
+    - name: Install Build Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y gcc-multilib nasm qemu-system-x86 xorriso isolinux syslinux-common
+        sudo apt-get install -y \
+          build-essential \
+          bc \
+          bison \
+          flex \
+          libssl-dev \
+          libelf-dev \
+          dwarves \
+          zstd \
+          kmod \
+          cpio \
+          rsync \
+          wget \
+          xz-utils \
+          grub2-common \
+          grub-pc-bin \
+          parted \
+          dosfstools
     
-    - name: Build
+    - name: Download Linux Kernel Source
       run: |
-        make all
-        ls -la
+        cd ${{ github.workspace }}
+        wget -q https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${{ env.LINUX_VERSION }}.tar.xz
+        tar xf linux-${{ env.LINUX_VERSION }}.tar.xz
+        ls -lh linux-${{ env.LINUX_VERSION }}
+    
+    - name: Configure Kernel
+      run: |
+        cd ${{ github.workspace }}/linux-${{ env.LINUX_VERSION }}
+        make defconfig
+        make kvm_guest.config
         
-    - name: Upload ISO
+        echo 'CONFIG_INITRAMFS_SOURCE="${{ github.workspace }}/rootfs"' >> .config
+        echo 'CONFIG_INITRAMFS_ROOT_UID=0' >> .config
+        echo 'CONFIG_INITRAMFS_COMPRESSION_GZIP=y' >> .config
+        echo 'CONFIG_DEBUG_INFO=n' >> .config
+        echo 'CONFIG_FRAME_POINTER=n' >> .config
+        
+        make olddefconfig
+    
+    - name: Build Kernel
+      run: |
+        cd ${{ github.workspace }}/linux-${{ env.LINUX_VERSION }}
+        make -j$(nproc) bzImage modules
+        make modules_install INSTALL_MOD_PATH=${{ github.workspace }}/build/modules
+    
+    - name: Build ISO Image
+      run: |
+        cd ${{ github.workspace }}
+        
+        mkdir -p iso/boot/grub
+        mkdir -p iso/boot/kernel
+        mkdir -p iso/live
+        
+        cp linux-${{ env.LINUX_VERSION }}/arch/x86/boot/bzImage iso/boot/kernel/vmlinuz-${{ env.LINUX_VERSION }}
+        cp linux-${{ env.LINUX_VERSION }}/System.map iso/boot/kernel/System.map-${{ env.LINUX_VERSION }}
+        
+        cat > iso/boot/grub/grub.cfg << 'EOF'
+        set timeout=5
+        set default=0
+        
+        menuentry 'FreeProMemOS ${{ env.LINUX_VERSION }}' {
+            linux /boot/kernel/vmlinuz-${{ env.LINUX_VERSION }} \
+                root=/dev/ram0 \
+                rw \
+                console=ttyS0 \
+                console=tty0
+            initrd /boot/initrd.img
+        }
+        
+        menuentry 'FreeProMemOS ${{ env.LINUX_VERSION }} (Safe Mode)' {
+            linux /boot/kernel/vmlinuz-${{ env.LINUX_VERSION }} \
+                root=/dev/ram0 \
+                rw \
+                console=ttyS0 \
+                console=tty0 \
+                single
+            initrd /boot/initrd.img
+        }
+        EOF
+        
+        cd ${{ github.workspace }}/linux-${{ env.LINUX_VERSION }}
+        find . -name '*.ko' | cpio --create --format='newc' | gzip > ${{ github.workspace }}/iso/boot/initrd.img
+        
+        cd iso
+        grub-mkrescue -o FreeProMemOS-${{ env.LINUX_VERSION }}.iso . 2>/dev/null || \
+        xorriso -as mkisofs -R -b boot/grub/bios.img -no-emul-boot -boot-load-size 2048 -boot-info-table -eltorito-alt-boot -e boot/grub/efi.img -no-emul-boot -o FreeProMemOS-${{ env.LINUX_VERSION }}.iso . 2>/dev/null || \
+        mkisofs -o FreeProMemOS-${{ env.LINUX_VERSION }}.iso -R -b boot/grub/bios.img -no-emul-boot -boot-load-size 2048 -boot-info-table .
+        
+        ls -lh FreeProMemOS-${{ env.LINUX_VERSION }}.iso
+    
+    - name: Upload ISO Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: FreeProMemOS-iso
-        path: FreeProMemOS.iso
+        name: FreeProMemOS-${{ env.LINUX_VERSION }}-x86_64
+        path: iso/FreeProMemOS-${{ env.LINUX_VERSION }}.iso
+    
+    - name: Upload Kernel Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-kernel-${{ env.LINUX_VERSION }}
+        path: |
+          linux-${{ env.LINUX_VERSION }}/arch/x86/boot/bzImage
+          linux-${{ env.LINUX_VERSION }}/System.map
+          build/modules/lib/modules/${{ env.LINUX_VERSION }}
+
+  release:
+    needs: build-kernel
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release'
+    
+    steps:
+    - name: Download ISO
+      uses: actions/download-artifact@v4
+      with:
+        name: FreeProMemOS-${{ env.LINUX_VERSION }}-x86_64
+        path: release/
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: release/*.iso
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
