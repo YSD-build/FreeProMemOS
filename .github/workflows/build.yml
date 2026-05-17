@@ -51,22 +51,8 @@ jobs:
       run: |
         mkdir -p iso/boot
         mkdir -p initramfs/bin
-        mkdir -p initramfs/sbin
-        mkdir -p initramfs/usr/bin
-        mkdir -p initramfs/usr/sbin
         cp /usr/bin/busybox initramfs/bin/
-        cp /usr/bin/busybox initramfs/sbin/
-        cp /usr/bin/busybox initramfs/usr/bin/
-        cp /usr/bin/busybox initramfs/usr/sbin/
-        cd initramfs/bin
-        for cmd in $(./busybox --list); do ln -sf /bin/busybox $cmd 2>/dev/null || true; done
-        cd ../sbin
-        for cmd in $(./busybox --list); do ln -sf /sbin/busybox $cmd 2>/dev/null || true; done
-        cd ../usr/bin
-        for cmd in $(./busybox --list); do ln -sf /usr/bin/busybox $cmd 2>/dev/null || true; done
-        cd ../usr/sbin
-        for cmd in $(./busybox --list); do ln -sf /usr/sbin/busybox $cmd 2>/dev/null || true; done
-        cd ../..
+        for cmd in $(/usr/bin/busybox --list); do ln -sf /bin/busybox initramfs/bin/$cmd 2>/dev/null || true; done
         printf '#!/bin/sh\nmount -t proc proc /proc\nmount -t sysfs sysfs /sys\nmount -t devtmpfs devtmpfs /dev\n\necho ""\necho "FreeProMemOS"\necho "============"\necho ""\necho "Kernel: $(uname -r)"\necho "Architecture: $(uname -m)"\necho ""\n/bin/sh\n' > initramfs/init
         chmod +x initramfs/init
         ls -la initramfs/
