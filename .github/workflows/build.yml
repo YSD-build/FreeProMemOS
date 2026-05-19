@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 env:
-  LINUX_VERSION: "6.8.12"
+  KERNEL_VERSION: "6.8.12"
 
 jobs:
   build:
@@ -16,85 +16,211 @@ jobs:
     steps:
     - uses: actions/checkout@v5
     
-    - name: Install Dependencies
+    - name: Install build dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential bc bison flex libssl-dev libelf-dev dwarves pahole zstd kmod cpio rsync wget xz-utils gzip bzip2 grub2-common grub-pc-bin grub-efi-amd64-bin xorriso parted dosfstools busybox mtools syslinux
+        sudo apt-get install -y \
+          build-essential \
+          git \
+          wget \
+          xz-utils \
+          gzip \
+          bzip2 \
+          bc \
+          bison \
+          flex \
+          libssl-dev \
+          libelf-dev \
+          cpio \
+          kmod \
+          rsync \
+          grub-pc-bin \
+          grub-common \
+          grub2-common \
+          xorriso \
+          mtools \
+          dosfstools \
+          e2fsprogs \
+          makedev \
+          systemd
     
-    - name: Download Kernel
+    - name: Download kernel source
       run: |
-        wget https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${{ env.LINUX_VERSION }}.tar.xz
-        tar xf linux-${{ env.LINUX_VERSION }}.tar.xz
+        cd /tmp
+        wget -q https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${KERNEL_VERSION}.tar.xz
+        tar xf linux-${KERNEL_VERSION}.tar.xz
+        ls -la /tmp/linux-${KERNEL_VERSION}
     
-    - name: Configure Kernel
+    - name: Configure kernel
       run: |
-        cd linux-${{ env.LINUX_VERSION }}
-        make defconfig
+        cd /tmp/linux-${KERNEL_VERSION}
+        make x86_64_defconfig
+        make kvm_guest.config >> .config
+        echo 'CONFIG_BLK_DEV_INITRD=y' >> .config
+        echo 'CONFIG_INITRAMFS_SOURCE=""' >> .config
+        make olddefconfig
     
-    - name: Build Kernel
+    - name: Build kernel
       run: |
-        cd linux-${{ env.LINUX_VERSION }}
-        make -j$(nproc) bzImage
+        cd /tmp/linux-${KERNEL_VERSION}
+        make -j$(nproc) bzImage modules
     
-    - name: Build Modules
+    - name: Install kernel modules
       run: |
-        cd linux-${{ env.LINUX_VERSION }}
-        make -j$(nproc) modules
-    
-    - name: Install Modules
-      run: |
-        cd linux-${{ env.LINUX_VERSION }}
+        cd /tmp/linux-${KERNEL_VERSION}
         sudo make modules_install
-        sudo depmod
+        sudo depmod ${KERNEL_VERSION}
     
-    - name: Create Initramfs
+    - name: Create root filesystem
       run: |
-        mkdir -p iso/boot
-        mkdir -p initramfs/bin
-        mkdir -p initramfs/dev
-        mkdir -p initramfs/proc
-        mkdir -p initramfs/sys
-        mkdir -p initramfs/sbin
-        mkdir -p initramfs/usr/bin
-        mkdir -p initramfs/usr/sbin
-        cp /usr/bin/busybox initramfs/bin/
-        cp /usr/bin/busybox initramfs/sbin/
-        cp /usr/bin/busybox initramfs/usr/bin/
-        cp /usr/bin/busybox initramfs/usr/sbin/
-        for cmd in $(/usr/bin/busybox --list); do ln -sf /bin/busybox initramfs/bin/$cmd 2>/dev/null || true; done
-        for cmd in $(/usr/bin/busybox --list); do ln -sf /sbin/busybox initramfs/sbin/$cmd 2>/dev/null || true; done
-        for cmd in $(/usr/bin/busybox --list); do ln -sf /usr/bin/busybox initramfs/usr/bin/$cmd 2>/dev/null || true; done
-        for cmd in $(/usr/bin/busybox --list); do ln -sf /usr/sbin/busybox initramfs/usr/sbin/$cmd 2>/dev/null || true; done
-        printf '#!/bin/sh\nmount -t proc proc /proc\nmount -t sysfs sysfs /sys\nmount -t devtmpfs devtmpfs /dev\n\necho ""\necho "FreeProMemOS"\necho "============"\necho ""\necho "Kernel: $(uname -r)"\necho "Architecture: $(uname -m)"\necho ""\nexec /bin/sh\n' > initramfs/init
-        chmod +x initramfs/init
-        ls -la initramfs/
-        ls -la initramfs/bin/
-        ls -la initramfs/sbin/
-        cat initramfs/init
-        cd initramfs
-        find . -print0 | cpio --null -o --format=newc | gzip > ../iso/boot/initrd.img
+        sudo mkdir -p /tmp/rootfs/{bin,sbin,etc,home,root,lib,lib64,mnt,proc,sys,tmp,usr,var,dev}
+        sudo chmod 1777 /tmp/rootfs/tmp
+        sudo chmod 755 /tmp/rootfs/root
+        sudo mknod -m 666 /tmp/rootfs/dev/null c 1 3
+        sudo mknod -m 666 /tmp/rootfs/dev/zero c 1 5
+        sudo mknod -m 666 /tmp/rootfs/dev/random c 1 8
+        sudo mknod -m 666 /tmp/rootfs/dev/urandom c 1 9
+        sudo mknod -m 666 /tmp/rootfs/dev/tty c 5 0
+        sudo mknod -m 666 /tmp/rootfs/dev/console c 5 1
+        sudo mknod -m 666 /tmp/rootfs/dev/loop0 b 7 0
+        sudo mknod -m 666 /tmp/rootfs/dev/loop1 b 7 1
     
-    - name: Create ISO
+    - name: Install busybox
       run: |
-        mkdir -p iso/boot/grub
-        mkdir -p iso/boot/kernel
-        cp linux-${{ env.LINUX_VERSION }}/arch/x86/boot/bzImage iso/boot/kernel/vmlinuz
-        cp linux-${{ env.LINUX_VERSION }}/System.map iso/boot/kernel/System.map
-        printf 'set timeout=5\nset default=0\n\nmenuentry "FreeProMemOS" {\n    linux /boot/kernel/vmlinuz root=/dev/ram0 rw\n    initrd /boot/initrd.img\n}\n' > iso/boot/grub/grub.cfg
-        cd iso
-        grub-mkrescue -o FreeProMemOS-${{ env.LINUX_VERSION }}.iso .
+        cd /tmp
+        wget -q https://busybox.net/downloads/busybox-1.36.1.tar.bz2
+        tar xf busybox-1.36.1.tar.bz2
+        cd busybox-1.36.1
+        make defconfig
+        make -j$(nproc)
+        sudo make CONFIG_PREFIX=/tmp/rootfs install
+    
+    - name: Create basic system files
+      run: |
+        sudo tee /tmp/rootfs/etc/passwd << 'PASSWD'
+        root:x:0:0:root:/root:/bin/sh
+        daemon:x:1:1:daemon:/usr/sbin:/bin/false
+        bin:x:2:2:bin:/bin:/bin/false
+        sys:x:3:3:sys:/dev:/bin/false
+        PASSWD
+        
+        sudo tee /tmp/rootfs/etc/group << 'GROUP'
+        root:x:0:
+        daemon:x:1:
+        bin:x:2:
+        sys:x:3:
+        GROUP
+        
+        echo "freepromemos" | sudo tee /tmp/rootfs/etc/hostname
+        sudo tee /tmp/rootfs/etc/hosts << 'HOSTS'
+        127.0.0.1   localhost
+        127.0.1.1   freepromemos
+        ::1         localhost ip6-localhost ip6-loopback
+        HOSTS
+    
+    - name: Create init script
+      run: |
+        sudo tee /tmp/rootfs/init << 'INIT'
+        #!/bin/sh
+
+        # Mount filesystems
+        mount -t proc none /proc
+        mount -t sysfs none /sys
+        mount -t devtmpfs none /dev 2>/dev/null || mount -t devpts devpts /dev/pts
+
+        # Welcome message
+        echo ""
+        echo "=========================================="
+        echo "  FreeProMemOS ${KERNEL_VERSION}"
+        echo "=========================================="
+        echo ""
+        echo "Linux kernel $(uname -r)"
+        echo "System architecture: $(uname -m)"
+        echo ""
+        echo "Built on: $(date)"
+        echo ""
+        echo "Welcome to FreeProMemOS!"
+        echo ""
+        echo "This is a minimal Linux system."
+        echo "Type 'help' for available commands."
+        echo ""
+
+        # Start shell
+        exec /bin/sh
+        INIT
+        
+        sudo chmod +x /tmp/rootfs/init
+    
+    - name: Create initramfs using Dracut
+      run: |
+        cd /tmp
+        git clone https://github.com/dracut-ng/dracut-ng.git
+        cd dracut-ng
+        ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var
+        make -j$(nproc)
+        sudo make install
+        
+        sudo mkdir -p /tmp/initramfs
+        cd /tmp/initramfs
+        sudo /usr/bin/dracut --kver ${KERNEL_VERSION} --force
+        sudo cp /tmp/initramfs/$(ls /tmp/initramfs/*.img 2>/dev/null | head -1) /tmp/initrd.img || \
+        sudo /usr/bin/dracut initrd ${KERNEL_VERSION} --force
+    
+    - name: Create boot directory and copy kernel
+      run: |
+        sudo mkdir -p /tmp/iso/boot/grub/i386-pc
+        sudo cp /tmp/linux-${KERNEL_VERSION}/arch/x86/boot/bzImage /tmp/iso/boot/vmlinuz
+        sudo cp /tmp/linux-${KERNEL_VERSION}/System.map /tmp/iso/boot/System.map
+        
+        if [ -f /tmp/initrd.img ]; then
+            sudo cp /tmp/initrd.img /tmp/iso/boot/initrd.img
+        elif [ -f /tmp/initramfs/*.img ]; then
+            sudo cp /tmp/initramfs/*.img /tmp/iso/boot/initrd.img
+        fi
+        
+        ls -la /tmp/iso/boot/
+    
+    - name: Create GRUB configuration
+      run: |
+        sudo tee /tmp/iso/boot/grub/grub.cfg << 'GRUB'
+        set timeout=10
+        set default=0
+
+        menuentry "FreeProMemOS ${KERNEL_VERSION}" {
+            linux /boot/vmlinuz root=/dev/ram0 rw
+            initrd /boot/initrd.img
+        }
+
+        menuentry "FreeProMemOS ${KERNEL_VERSION} (Safe Mode)" {
+            linux /boot/vmlinuz root=/dev/ram0 rw single
+            initrd /boot/initrd.img
+        }
+        GRUB
+    
+    - name: Create ISO image
+      run: |
+        cd /tmp
+        mkdir -p iso_root
+        sudo cp -r /tmp/iso/* iso_root/
+        
+        grub-mkrescue -o FreeProMemOS-${KERNEL_VERSION}.iso /tmp/iso -- -padmax 8000 2>/dev/null || \
+        grub-mkrescue -o FreeProMemOS-${KERNEL_VERSION}.iso /tmp/iso 2>/dev/null || \
+        xorriso -as mkisofs -R -b boot/grub/i386-pc/boot.img -no-emul-boot -boot-load-size 2048 -boot-info-table --grub2-boot-info --grub2-mbr /usr/lib/grub/i386-pc/boot_hybrid.img -o FreeProMemOS-${KERNEL_VERSION}.iso /tmp/iso
+        
+        ls -lh FreeProMemOS-${KERNEL_VERSION}.iso
+        file FreeProMemOS-${KERNEL_VERSION}.iso
     
     - name: Upload ISO
       uses: actions/upload-artifact@v4
       with:
-        name: FreeProMemOS-ISO
-        path: iso/*.iso
+        name: FreeProMemOS-ISO-${KERNEL_VERSION}
+        path: /tmp/FreeProMemOS-${KERNEL_VERSION}.iso
     
     - name: Upload Kernel
       uses: actions/upload-artifact@v4
       with:
-        name: FreeProMemOS-Kernel
+        name: FreeProMemOS-Kernel-${KERNEL_VERSION}
         path: |
-          linux-${{ env.LINUX_VERSION }}/arch/x86/boot/bzImage
-          linux-${{ env.LINUX_VERSION }}/System.map
-          linux-${{ env.LINUX_VERSION }}/.config
+          /tmp/linux-${KERNEL_VERSION}/arch/x86/boot/bzImage
+          /tmp/linux-${KERNEL_VERSION}/System.map
+          /tmp/linux-${KERNEL_VERSION}/.config
