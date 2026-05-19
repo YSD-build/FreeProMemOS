@@ -10,6 +10,7 @@ env:
   KERNEL_VERSION: "6.8.12"
   DISTRO: "ubuntu"
   CODENAME: "jammy"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   build:
@@ -46,25 +47,26 @@ jobs:
     
     - name: Download kernel source
       run: |
-        cd /tmp
-        wget -q https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${KERNEL_VERSION}.tar.xz
+        cd "$HOME"
+        wget https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${KERNEL_VERSION}.tar.xz
         tar xf linux-${KERNEL_VERSION}.tar.xz
-        ls -la /tmp/linux-${KERNEL_VERSION}
+        ls -la linux-${KERNEL_VERSION}
     
     - name: Configure kernel
       run: |
-        cd /tmp/linux-${KERNEL_VERSION}
+        cd "$HOME/linux-${KERNEL_VERSION}"
         make x86_64_defconfig
         make olddefconfig
     
     - name: Build kernel
       run: |
-        cd /tmp/linux-${KERNEL_VERSION}
+        cd "$HOME/linux-${KERNEL_VERSION}"
         make -j$(nproc) bzImage modules
+        ls -lh arch/x86/boot/bzImage
     
     - name: Install kernel modules
       run: |
-        cd /tmp/linux-${KERNEL_VERSION}
+        cd "$HOME/linux-${KERNEL_VERSION}"
         sudo make modules_install
         sudo depmod ${KERNEL_VERSION}
     
@@ -75,106 +77,84 @@ jobs:
         sudo chroot /tmp/rootfs bash -c "echo 'freepromemos' > /etc/hostname"
         sudo chroot /tmp/rootfs bash -c "echo '127.0.0.1 localhost' >> /etc/hosts"
         sudo chroot /tmp/rootfs bash -c "echo '127.0.1.1 freepromemos' >> /etc/hosts"
-        sudo chroot /tmp/rootfs bash -c "useradd -m -s /bin/bash user"
-        sudo chroot /tmp/rootfs bash -c "echo 'root:root' | chpasswd"
-        sudo chroot /tmp/rootfs bash -c "echo 'user:user' | chpasswd"
+        sudo chroot /tmp/rootfs bash -c "useradd -m -s /bin/bash user || true"
+        sudo chroot /tmp/rootfs bash -c "echo 'root:root' | chpasswd || true"
+        sudo chroot /tmp/rootfs bash -c "echo 'user:user' | chpasswd || true"
         
-        # Create init script
-        sudo tee /tmp/rootfs/init << 'INIT'
-        #!/bin/bash
-
-        # Mount filesystems
-        mount -t proc none /proc
-        mount -t sysfs none /sys
-        mount -t devtmpfs none /dev 2>/dev/null
-        mount -t tmpfs none /tmp 2>/dev/null
-
-        # Welcome message
-        clear
-        echo ""
-        echo "=========================================="
-        echo "  FreeProMemOS ${KERNEL_VERSION}"
-        echo "=========================================="
-        echo ""
-        echo "Linux kernel $(uname -r)"
-        echo "System architecture: $(uname -m)"
-        echo ""
-        echo "Welcome to FreeProMemOS!"
-        echo ""
-        echo "This is a lightweight Debian-based system."
-        echo ""
-        echo "Available commands:"
-        echo "  bash, ls, cd, cat, etc. (coreutils)"
-        echo "  wget"
-        echo "  vim"
-        echo ""
-        echo "Login as: root (password: root) or user (password: user)"
-        echo ""
-
-        # Start shell
-        exec /bin/bash
-        INIT
+        cat > /tmp/init.sh << 'INIT'
+#!/bin/bash
+mount -t proc none /proc
+mount -t sysfs none /sys
+mount -t devtmpfs none /dev 2>/dev/null || true
+mount -t tmpfs none /tmp 2>/dev/null || true
+clear
+echo ""
+echo "=========================================="
+echo "  FreeProMemOS ${KERNEL_VERSION}"
+echo "=========================================="
+echo ""
+echo "Linux kernel $(uname -r)"
+echo "System architecture: $(uname -m)"
+echo ""
+echo "Welcome to FreeProMemOS!"
+echo ""
+echo "This is a lightweight Debian-based system."
+echo "Login as: root (password: root)"
+echo ""
+exec /bin/bash
+INIT
         
+        sudo cp /tmp/init.sh /tmp/rootfs/init
         sudo chmod +x /tmp/rootfs/init
         
-        # Clean up some space
-        sudo rm -rf /tmp/rootfs/var/cache/apt/archives/*
-        sudo rm -rf /tmp/rootfs/var/lib/apt/lists/*
+        sudo rm -rf /tmp/rootfs/var/cache/apt/archives/* 2>/dev/null || true
+        sudo rm -rf /tmp/rootfs/var/lib/apt/lists/* 2>/dev/null || true
         
         ls -la /tmp/rootfs/
     
     - name: Create initramfs
       run: |
-        cd /tmp/linux-${KERNEL_VERSION}
-        sudo mkdir -p /tmp/initramfs
-        sudo chmod 755 /tmp/initramfs
+        mkdir -p /tmp/initramfs
+        cp -r /tmp/rootfs/* /tmp/initramfs/
         
-        # Copy everything from rootfs
-        sudo cp -r /tmp/rootfs/* /tmp/initramfs/
+        chmod 755 /tmp/initramfs
+        chmod 755 /tmp/initramfs/dev /tmp/initramfs/proc /tmp/initramfs/sys /tmp/initramfs/tmp 2>/dev/null || true
         
-        # Make sure it's bootable
         cd /tmp/initramfs
-        sudo chmod 755 .
-        sudo chmod 755 dev proc sys tmp
-        
-        # Create initramfs
-        sudo find . -print0 | sudo cpio --null -o --format=newc | gzip -9 > /tmp/initrd.img
+        find . -print0 | cpio --null -o --format=newc | gzip -9 > /tmp/initrd.img
         
         ls -lh /tmp/
     
-    - name: Create boot directory and copy kernel
+    - name: Create boot directory
       run: |
-        sudo mkdir -p /tmp/iso/boot/grub/i386-pc
-        sudo cp /tmp/linux-${KERNEL_VERSION}/arch/x86/boot/bzImage /tmp/iso/boot/vmlinuz
-        sudo cp /tmp/linux-${KERNEL_VERSION}/System.map /tmp/iso/boot/System.map
-        sudo cp /tmp/initrd.img /tmp/iso/boot/initrd.img
+        mkdir -p /tmp/iso/boot/grub/i386-pc
+        cp "$HOME/linux-${KERNEL_VERSION}/arch/x86/boot/bzImage" /tmp/iso/boot/vmlinuz
+        cp "$HOME/linux-${KERNEL_VERSION}/System.map" /tmp/iso/boot/System.map
+        cp /tmp/initrd.img /tmp/iso/boot/initrd.img
         ls -la /tmp/iso/boot/
     
     - name: Create GRUB configuration
       run: |
-        sudo tee /tmp/iso/boot/grub/grub.cfg << 'GRUB'
-        set timeout=10
-        set default=0
+        cat > /tmp/iso/boot/grub/grub.cfg << 'GRUB'
+set timeout=10
+set default=0
 
-        menuentry "FreeProMemOS ${KERNEL_VERSION}" {
-            linux /boot/vmlinuz root=/dev/ram0 rw
-            initrd /boot/initrd.img
-        }
+menuentry "FreeProMemOS ${KERNEL_VERSION}" {
+    linux /boot/vmlinuz root=/dev/ram0 rw
+    initrd /boot/initrd.img
+}
 
-        menuentry "FreeProMemOS ${KERNEL_VERSION} (Safe Mode)" {
-            linux /boot/vmlinuz root=/dev/ram0 rw single
-            initrd /boot/initrd.img
-        }
-        GRUB
+menuentry "FreeProMemOS ${KERNEL_VERSION} (Safe Mode)" {
+    linux /boot/vmlinuz root=/dev/ram0 rw single
+    initrd /boot/initrd.img
+}
+GRUB
     
     - name: Create ISO image
       run: |
         cd /tmp
-        
-        # Create a simple ISO using grub-mkrescue
-        grub-mkrescue -o FreeProMemOS-${KERNEL_VERSION}.iso /tmp/iso 2>/dev/null || \
+        ls -la iso/
         grub-mkrescue -o FreeProMemOS-${KERNEL_VERSION}.iso /tmp/iso
-        
         ls -lh FreeProMemOS-${KERNEL_VERSION}.iso
         file FreeProMemOS-${KERNEL_VERSION}.iso
     
@@ -189,6 +169,6 @@ jobs:
       with:
         name: FreeProMemOS-Kernel-${KERNEL_VERSION}
         path: |
-          /tmp/linux-${KERNEL_VERSION}/arch/x86/boot/bzImage
-          /tmp/linux-${KERNEL_VERSION}/System.map
-          /tmp/linux-${KERNEL_VERSION}/.config
+          /root/linux-${KERNEL_VERSION}/arch/x86/boot/bzImage
+          /root/linux-${KERNEL_VERSION}/System.map
+          /root/linux-${KERNEL_VERSION}/.config
