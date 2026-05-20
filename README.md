@@ -1,42 +1,68 @@
 
-# FreeProMemOS
+# FreeProMemOS BETA v0.1.0
 
-A lightweight, performance-focused Linux-based operating system built on the latest stable Linux kernel.
+一个轻量级、注重性能的基于Linux的操作系统，构建于最新的稳定Linux内核。
 
-## Features
+## 关于BETA测试版
 
-- **Latest Stable Kernel**: Built on Linux kernel 6.8.12 (customizable)
-- **Debian Compatible**: Compatible with Debian packages and applications
-- **Fast & Lightweight**: Minimal footprint, optimized for performance
-- **Live Boot**: Can boot directly from ISO without installation
-- **GitHub Actions CI/CD**: Automatic building and releases
+这是FreeProMemOS的第一个公开BETA测试版本。此版本经过优化以确保稳定性，适合早期采用者测试和试用。
 
-## Quick Start
+### BETA测试版特性
 
-### Download Pre-built ISO
+- **最新稳定内核**: 基于Linux内核6.8.12构建
+- **Debian兼容**: 兼容Debian软件包和应用程序
+- **快速轻量**: 极小的系统占用，优化的性能表现
+- **Live启动**: 可直接从ISO启动，无需安装
+- **GitHub Actions CI/CD**: 自动化构建和发布
 
-Latest releases are available on the [GitHub Releases](https://github.com/YSD-build/FreeProMemOS/releases) page.
+### 包含的软件包
 
-### Build from Source
+- bash (命令行shell)
+- wget (网络下载工具)
+- vim (文本编辑器)
+- coreutils (基础Linux工具)
+- iproute2, iputils-ping, net-tools (网络工具)
+- procps, util-linux (系统工具)
+- dpkg, apt (Debian包管理)
+- 等等...
 
-#### Using GitHub Actions (Recommended)
+## 快速开始
 
-1. Fork or clone this repository
-2. The ISO is automatically built on every push to main branch
-3. Download the built ISO from the Actions artifacts
+### 下载BETA测试版
 
-#### Local Build
+最新的BETA测试版可以从GitHub Actions的Artifacts中获取，或者从发布页面下载（如果有的话）。
+
+### 默认账户
+
+- **root**: 密码 `root`
+- **user**: 密码 `user`
+
+## 构建说明
+
+### 使用GitHub Actions（推荐）
+
+1. 复刻或克隆此仓库
+2. 每次推送到main分支时会自动构建ISO
+3. 从Actions的Artifacts中下载构建好的ISO
+
+### 本地构建
 
 ```bash
-# Clone the repository
+# 克隆仓库
 git clone https://github.com/YSD-build/FreeProMemOS.git
 cd FreeProMemOS
 
-# Run as root
+# 以root运行
 sudo ./scripts/build-local.sh 6.8.12
 ```
 
-## Project Structure
+## 系统要求
+
+- **CPU**: x86_64 (64位Intel/AMD)
+- **RAM**: 最小512MB，推荐1GB
+- **存储**: 2GB可用空间（用于构建）
+
+## 项目结构
 
 ```
 FreeProMemOS/
@@ -44,96 +70,38 @@ FreeProMemOS/
 │   └── workflows/
 │       └── build.yml        # GitHub Actions CI/CD
 ├── scripts/
-│   ├── build-local.sh      # Local build script
-│   └── build-rootfs.sh    # Root filesystem builder
-├── rootfs/                 # Root filesystem template
-├── iso/                    # Built ISO output
+│   ├── build-local.sh      # 本地构建脚本
+│   └── build-rootfs.sh    # 根文件系统构建
+├── VERSION                # 版本信息
 └── README.md
 ```
 
-## System Requirements
+## 使用说明
 
-- CPU: x86_64 (64-bit Intel/AMD)
-- RAM: 512MB minimum, 1GB recommended
-- Storage: 2GB available space (for build)
+### 从ISO启动
 
-## Building
+1. 下载ISO
+2. 创建可启动的USB或挂载ISO
+3. 从中启动（可能需要在BIOS中启用UEFI/Legacy启动）
+4. 使用默认账户登录
 
-### Automatic Build (GitHub Actions)
+## 反馈与贡献
 
-The project uses GitHub Actions to automatically:
+这是一个BETA测试版，我们非常期待您的反馈！
 
-1. Download the latest Linux kernel source
-2. Configure and compile the kernel
-3. Build kernel modules
-4. Create the ISO image
-5. Upload artifacts and create releases
+- **问题报告**: [GitHub Issues](https://github.com/YSD-build/FreeProMemOS/issues)
+- **讨论**: [GitHub Discussions](https://github.com/YSD-build/FreeProMemOS/discussions)
 
-To trigger a build:
-- Push to main branch
-- Create a tag (`git tag v1.0.0 && git push origin v1.0.0`)
-- Or manually trigger from GitHub Actions tab
+## 许可
 
-### Custom Kernel Version
+MIT License - 详见LICENSE文件
 
-To use a different kernel version, modify the `LINUX_VERSION` in `.github/workflows/build.yml`:
+## 致谢
 
-```yaml
-env:
-  LINUX_VERSION: "6.8.12"  # Change to desired version
-```
-
-### Kernel Configuration
-
-The kernel is configured using:
-- `make defconfig` - Default configuration
-- `make kvm_guest.config` - KVM guest optimizations
-- Custom configs for initramfs support
-
-## Usage
-
-### Boot from ISO
-
-1. Download the ISO
-2. Create a bootable USB or mount the ISO
-3. Boot from it (may require enabling UEFI/Legacy boot in BIOS)
-4. Login as root (no password in live mode)
-
-### Default Boot Options
-
-- **Standard Mode**: Full system with networking
-- **Safe Mode**: Single user mode for debugging
-
-## Compatibility
-
-This OS is designed to be **Debian compatible**, meaning:
-
-- Can install Debian `.deb` packages
-- Uses the same package management tools
-- Compatible with most Debian/Ubuntu applications
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## License
-
-MIT License - See LICENSE file for details
-
-## Acknowledgments
-
-- Linux Kernel Project
-- Debian Project
-- GNU Project
-
-## Support
-
-- **Issues**: [GitHub Issues](https://github.com/YSD-build/FreeProMemOS/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/YSD-build/FreeProMemOS/discussions)
+- Linux内核项目
+- Debian项目
+- GNU项目
 
 ---
 
-**FreeProMemOS** - Performance, Stability, and Compatibility
+**FreeProMemOS** - 性能、稳定与兼容性
