@@ -71,7 +71,7 @@ jobs:
       run: |
         sudo mkdir -p /tmp/rootfs
         sudo debootstrap \
-          --include=bash,wget,vim,coreutils,iproute2,iputils-ping,net-tools,ifupdown,procps,sysvinit-utils,util-linux,ncurses-bin,less,dpkg,apt \
+          --include=bash,wget,vim,coreutils,iproute2,iputils-ping,net-tools,procps,systemd,udev,util-linux,ncurses-bin,less,dpkg,apt \
           --variant=minbase \
           ${CODENAME} /tmp/rootfs http://archive.ubuntu.com/ubuntu/
         
