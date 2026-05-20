@@ -75,44 +75,20 @@ jobs:
           --variant=minbase \
           ${CODENAME} /tmp/rootfs http://archive.ubuntu.com/ubuntu/
         
-        sudo chroot /tmp/rootfs bash -c "echo 'freepromemos' &gt; /etc/hostname"
-        sudo chroot /tmp/rootfs bash -c "echo '127.0.0.1 localhost' &gt; /etc/hosts"
-        sudo chroot /tmp/rootfs bash -c "echo '127.0.1.1 freepromemos' &gt;&gt; /etc/hosts"
+        sudo chroot /tmp/rootfs bash -c "echo 'freepromemos' > /etc/hostname"
+        sudo chroot /tmp/rootfs bash -c "echo '127.0.0.1 localhost' > /etc/hosts"
+        sudo chroot /tmp/rootfs bash -c "echo '127.0.1.1 freepromemos' >> /etc/hosts"
         sudo chroot /tmp/rootfs bash -c "useradd -m -s /bin/bash user"
         sudo chroot /tmp/rootfs bash -c "echo 'root:root' | chpasswd"
         sudo chroot /tmp/rootfs bash -c "echo 'user:user' | chpasswd"
         
-        sudo rm -f /tmp/init.sh
-        sudo cat &gt; /tmp/init.sh &lt;&lt; 'INITEND'
-#!/bin/bash
-set -e
-mount -t proc proc /proc
-mount -t sysfs sysfs /sys
-mount -t devtmpfs devtmpfs /dev 2&gt;/dev/null || true
-mount -t tmpfs tmpfs /tmp 2&gt;/dev/null || true
-clear
-echo ""
-echo "=========================================="
-echo "  FreeProMemOS BETA v0.1.0"
-echo "=========================================="
-echo ""
-echo "Linux kernel $(uname -r)"
-echo "System architecture: $(uname -m)"
-echo ""
-echo "Welcome to FreeProMemOS!"
-echo ""
-echo "This is a lightweight Debian-based system."
-echo "Login as: root (password: root)"
-echo "          user (password: user)"
-echo ""
-exec /bin/bash
-INITEND
+        printf '#!/bin/bash\nset -e\nmount -t proc proc /proc\nmount -t sysfs sysfs /sys\nmount -t devtmpfs devtmpfs /dev 2>/dev/null || true\nmount -t tmpfs tmpfs /tmp 2>/dev/null || true\nclear\necho ""\necho "=========================================="\necho "  FreeProMemOS BETA v0.1.0"\necho "=========================================="\necho ""\necho "Linux kernel $(uname -r)"\necho "System architecture: $(uname -m)"\necho ""\necho "Welcome to FreeProMemOS!"\necho ""\necho "This is a lightweight Debian-based system."\necho "Login as: root (password: root)"\necho "          user (password: user)"\necho ""\nexec /bin/bash\n' > /tmp/init.sh
         
         sudo cp /tmp/init.sh /tmp/rootfs/init
         sudo chmod +x /tmp/rootfs/init
         
-        sudo rm -rf /tmp/rootfs/var/cache/apt/archives/* 2&gt;/dev/null || true
-        sudo rm -rf /tmp/rootfs/var/lib/apt/lists/* 2&gt;/dev/null || true
+        sudo rm -rf /tmp/rootfs/var/cache/apt/archives/* 2>/dev/null || true
+        sudo rm -rf /tmp/rootfs/var/lib/apt/lists/* 2>/dev/null || true
         
         ls -la /tmp/rootfs/
     
@@ -122,10 +98,10 @@ INITEND
         sudo cp -a /tmp/rootfs/* /tmp/initramfs/
         
         sudo chmod 755 /tmp/initramfs
-        sudo chmod 755 /tmp/initramfs/dev /tmp/initramfs/proc /tmp/initramfs/sys /tmp/initramfs/tmp 2&gt;/dev/null || true
+        sudo chmod 755 /tmp/initramfs/dev /tmp/initramfs/proc /tmp/initramfs/sys /tmp/initramfs/tmp 2>/dev/null || true
         
         cd /tmp/initramfs
-        sudo find . -print0 | sudo cpio --null -o --format=newc | gzip -9 &gt; /tmp/initrd.img
+        sudo find . -print0 | sudo cpio --null -o --format=newc | gzip -9 > /tmp/initrd.img
         
         ls -lh /tmp/
     
@@ -139,21 +115,7 @@ INITEND
     
     - name: Create GRUB configuration
       run: |
-        sudo rm -f /tmp/iso/boot/grub/grub.cfg
-        sudo cat &gt; /tmp/iso/boot/grub/grub.cfg &lt;&lt; 'GRUBEND'
-set timeout=10
-set default=0
-
-menuentry "FreeProMemOS BETA v0.1.0" {
-    linux /boot/vmlinuz root=/dev/ram0 rw init=/init
-    initrd /boot/initrd.img
-}
-
-menuentry "FreeProMemOS BETA v0.1.0 (Safe Mode)" {
-    linux /boot/vmlinuz root=/dev/ram0 rw init=/init single
-    initrd /boot/initrd.img
-}
-GRUBEND
+        printf 'set timeout=10\nset default=0\n\nmenuentry "FreeProMemOS BETA v0.1.0" {\n    linux /boot/vmlinuz root=/dev/ram0 rw init=/init\n    initrd /boot/initrd.img\n}\n\nmenuentry "FreeProMemOS BETA v0.1.0 (Safe Mode)" {\n    linux /boot/vmlinuz root=/dev/ram0 rw init=/init single\n    initrd /boot/initrd.img\n}\n' > /tmp/iso/boot/grub/grub.cfg
         
         ls -la /tmp/iso/boot/grub/
     
