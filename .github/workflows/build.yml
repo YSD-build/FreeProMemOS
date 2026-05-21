@@ -82,9 +82,8 @@ jobs:
         sudo chroot /tmp/rootfs bash -c "echo 'root:freepromemos' | chpasswd"
         sudo chroot /tmp/rootfs bash -c "echo 'admin:freepromemos' | chpasswd"
         
-        printf '#!/bin/bash\nset -e\nmount -t proc proc /proc\nmount -t sysfs sysfs /sys\nmount -t devtmpfs devtmpfs /dev 2&gt;/dev/null || true\nmount -t tmpfs tmpfs /tmp 2&gt;/dev/null || true\nclear\necho ""\necho "=========================================="\necho "  FreeProMemOS Server BETA v0.1.0"\necho "=========================================="\necho ""\necho "Linux kernel $(uname -r)"\necho "System architecture: $(uname -m)"\necho "Hostname: freepromemos-server"\necho ""\necho "Welcome to FreeProMemOS Server!"\necho ""\necho "This is a minimal base system."\necho "Use apt to install additional packages."\necho ""\necho "Default accounts:"\necho "  - root: freepromemos"\necho "  - admin: freepromemos"\necho ""\nexec /bin/bash\n' &gt; /tmp/init.sh
+        printf '#!/bin/bash\nset -e\nmount -t proc proc /proc 2&gt;/dev/null || true\nmount -t sysfs sysfs /sys 2&gt;/dev/null || true\nmount -t devtmpfs devtmpfs /dev 2&gt;/dev/null || true\nmount -t tmpfs tmpfs /tmp 2&gt;/dev/null || true\nclear\necho ""\necho "=========================================="\necho "  FreeProMemOS Server BETA v0.1.0"\necho "=========================================="\necho ""\necho "Linux kernel $(uname -r)"\necho "System architecture: $(uname -m)"\necho "Hostname: freepromemos-server"\necho ""\necho "Welcome to FreeProMemOS Server!"\necho ""\necho "This is a minimal base system."\necho "Use apt to install additional packages."\necho ""\necho "Default accounts:"\necho "  - root: freepromemos"\necho "  - admin: freepromemos"\necho ""\nexec /bin/bash\n' | sudo tee /tmp/rootfs/init &gt; /dev/null
         
-        sudo cp /tmp/init.sh /tmp/rootfs/init
         sudo chmod +x /tmp/rootfs/init
         
         sudo rm -rf /tmp/rootfs/var/cache/apt/archives/* 2&gt;/dev/null || true
@@ -97,7 +96,7 @@ jobs:
         mkdir -p /tmp/initramfs
         sudo cp -a /tmp/rootfs/* /tmp/initramfs/
         
-        sudo chmod 755 /tmp/initramfs
+        sudo chmod -R 755 /tmp/initramfs 2&gt;/dev/null || true
         sudo chmod 755 /tmp/initramfs/dev /tmp/initramfs/proc /tmp/initramfs/sys /tmp/initramfs/tmp 2&gt;/dev/null || true
         
         cd /tmp/initramfs
@@ -115,7 +114,7 @@ jobs:
     
     - name: Create GRUB configuration
       run: |
-        printf 'set timeout=10\nset default=0\n\nmenuentry "FreeProMemOS Server BETA v0.1.0" {\n    linux /boot/vmlinuz root=/dev/ram0 rw init=/init\n    initrd /boot/initrd.img\n}\n\nmenuentry "FreeProMemOS Server BETA v0.1.0 (Safe Mode)" {\n    linux /boot/vmlinuz root=/dev/ram0 rw init=/init single\n    initrd /boot/initrd.img\n}\n' &gt; /tmp/iso/boot/grub/grub.cfg
+        printf 'set timeout=10\nset default=0\n\nmenuentry "FreeProMemOS Server BETA v0.1.0" {\n    linux /boot/vmlinuz root=/dev/ram0 rw init=/init\n    initrd /boot/initrd.img\n}\n\nmenuentry "FreeProMemOS Server BETA v0.1.0 (Safe Mode)" {\n    linux /boot/vmlinuz root=/dev/ram0 rw init=/init single\n    initrd /boot/initrd.img\n}\n' | sudo tee /tmp/iso/boot/grub/grub.cfg &gt; /dev/null
         
         ls -la /tmp/iso/boot/grub/
     
