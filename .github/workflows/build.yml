@@ -38,14 +38,13 @@ jobs:
           mtools \
           dosfstools \
           debootstrap \
-          ca-certificates \
-          linux-image-generic-hwe-22.04
+          ca-certificates
     
     - name: Create minimal Ubuntu base system
       run: |
         sudo mkdir -p /tmp/rootfs
         sudo debootstrap \
-          --include=bash,wget,vim,coreutils,apt,dpkg,linux-image-generic-hwe-22.04 \
+          --include=bash,wget,vim,coreutils,apt,dpkg \
           --variant=minbase \
           ${CODENAME} /tmp/rootfs http://archive.ubuntu.com/ubuntu/
         
@@ -63,26 +62,24 @@ jobs:
         sudo rm -rf /tmp/rootfs/var/cache/apt/archives/* 2&gt;/dev/null || true
         sudo rm -rf /tmp/rootfs/var/lib/apt/lists/* 2&gt;/dev/null || true
         
-        ls -la /tmp/rootfs/boot/
+        ls -la /tmp/rootfs/
     
-    - name: Extract kernel from rootfs
+    - name: Use host system kernel
       run: |
-        ls -la /tmp/rootfs/boot/
-        KERNEL_IMG=$(ls -1 /tmp/rootfs/boot/vmlinuz-* | head -1)
-        INITRD_IMG=$(ls -1 /tmp/rootfs/boot/initrd.img-* | head -1)
-        SYSTEM_MAP=$(ls -1 /tmp/rootfs/boot/System.map-* | head -1)
+        ls -la /boot/
+        KERNEL_IMG=$(ls -1 /boot/vmlinuz-* | head -1)
+        SYSTEM_MAP=$(ls -1 /boot/System.map-* | head -1)
         echo "KERNEL_IMG=$KERNEL_IMG" &gt;&gt; $GITHUB_ENV
-        echo "INITRD_IMG=$INITRD_IMG" &gt;&gt; $GITHUB_ENV
         echo "SYSTEM_MAP=$SYSTEM_MAP" &gt;&gt; $GITHUB_ENV
-        ls -lh $KERNEL_IMG $INITRD_IMG $SYSTEM_MAP
+        ls -lh $KERNEL_IMG $SYSTEM_MAP
     
-    - name: Create boot directory
+    - name: Create boot directory and ISO
       run: |
         mkdir -p /tmp/iso/boot/grub/i386-pc
         cp $KERNEL_IMG /tmp/iso/boot/vmlinuz
         cp $SYSTEM_MAP /tmp/iso/boot/System.map
         
-        # 创建简化版initramfs（用我们自己的）
+        # 创建initramfs
         mkdir -p /tmp/initramfs
         sudo cp -a /tmp/rootfs/* /tmp/initramfs/
         
@@ -93,15 +90,13 @@ jobs:
         sudo find . -print0 | sudo cpio --null -o --format=newc | gzip -9 &gt; /tmp/iso/boot/initrd.img
         
         ls -lh /tmp/iso/boot/
-    
-    - name: Create GRUB configuration
-      run: |
+        
+        # GRUB配置
         printf 'set timeout=10\nset default=0\n\nmenuentry "FreeProMemOS Server BETA v0.1.0" {\n    linux /boot/vmlinuz root=/dev/ram0 rw init=/init\n    initrd /boot/initrd.img\n}\n\nmenuentry "FreeProMemOS Server BETA v0.1.0 (Safe Mode)" {\n    linux /boot/vmlinuz root=/dev/ram0 rw init=/init single\n    initrd /boot/initrd.img\n}\n' | sudo tee /tmp/iso/boot/grub/grub.cfg &gt; /dev/null
         
         ls -la /tmp/iso/boot/grub/
-    
-    - name: Create ISO image
-      run: |
+        
+        # 打包ISO
         cd /tmp
         ls -la iso/
         grub-mkrescue -o FreeProMemOS-Server-BETA-${VERSION}.iso /tmp/iso
