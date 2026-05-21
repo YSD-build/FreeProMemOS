@@ -16,7 +16,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 60
     
     steps:
     - uses: actions/checkout@v5
@@ -25,18 +25,11 @@ jobs:
       run: |
         sudo apt-get update
         sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-          build-essential \
           wget \
           xz-utils \
           gzip \
           bzip2 \
-          bc \
-          bison \
-          flex \
-          libssl-dev \
-          libelf-dev \
           cpio \
-          kmod \
           rsync \
           grub-pc-bin \
           grub-common \
@@ -45,33 +38,14 @@ jobs:
           mtools \
           dosfstools \
           debootstrap \
-          qemu-utils \
-          ca-certificates
-    
-    - name: Download kernel source
-      run: |
-        cd "$HOME"
-        wget --no-verbose --tries=3 https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${KERNEL_VERSION}.tar.xz
-        tar xf linux-${KERNEL_VERSION}.tar.xz
-        ls -la linux-${KERNEL_VERSION}
-    
-    - name: Configure kernel
-      run: |
-        cd "$HOME/linux-${KERNEL_VERSION}"
-        make x86_64_defconfig
-        make olddefconfig
-    
-    - name: Build kernel
-      run: |
-        cd "$HOME/linux-${KERNEL_VERSION}"
-        make -j$(nproc) bzImage modules
-        ls -lh arch/x86/boot/bzImage
+          ca-certificates \
+          linux-image-generic-hwe-22.04
     
     - name: Create minimal Ubuntu base system
       run: |
         sudo mkdir -p /tmp/rootfs
         sudo debootstrap \
-          --include=bash,wget,vim,coreutils,apt,dpkg \
+          --include=bash,wget,vim,coreutils,apt,dpkg,linux-image-generic-hwe-22.04 \
           --variant=minbase \
           ${CODENAME} /tmp/rootfs http://archive.ubuntu.com/ubuntu/
         
@@ -89,10 +63,26 @@ jobs:
         sudo rm -rf /tmp/rootfs/var/cache/apt/archives/* 2&gt;/dev/null || true
         sudo rm -rf /tmp/rootfs/var/lib/apt/lists/* 2&gt;/dev/null || true
         
-        ls -la /tmp/rootfs/
+        ls -la /tmp/rootfs/boot/
     
-    - name: Create initramfs
+    - name: Extract kernel from rootfs
       run: |
+        ls -la /tmp/rootfs/boot/
+        KERNEL_IMG=$(ls -1 /tmp/rootfs/boot/vmlinuz-* | head -1)
+        INITRD_IMG=$(ls -1 /tmp/rootfs/boot/initrd.img-* | head -1)
+        SYSTEM_MAP=$(ls -1 /tmp/rootfs/boot/System.map-* | head -1)
+        echo "KERNEL_IMG=$KERNEL_IMG" &gt;&gt; $GITHUB_ENV
+        echo "INITRD_IMG=$INITRD_IMG" &gt;&gt; $GITHUB_ENV
+        echo "SYSTEM_MAP=$SYSTEM_MAP" &gt;&gt; $GITHUB_ENV
+        ls -lh $KERNEL_IMG $INITRD_IMG $SYSTEM_MAP
+    
+    - name: Create boot directory
+      run: |
+        mkdir -p /tmp/iso/boot/grub/i386-pc
+        cp $KERNEL_IMG /tmp/iso/boot/vmlinuz
+        cp $SYSTEM_MAP /tmp/iso/boot/System.map
+        
+        # 创建简化版initramfs（用我们自己的）
         mkdir -p /tmp/initramfs
         sudo cp -a /tmp/rootfs/* /tmp/initramfs/
         
@@ -100,17 +90,9 @@ jobs:
         sudo chmod 755 /tmp/initramfs/dev /tmp/initramfs/proc /tmp/initramfs/sys /tmp/initramfs/tmp 2&gt;/dev/null || true
         
         cd /tmp/initramfs
-        sudo find . -print0 | sudo cpio --null -o --format=newc | gzip -9 &gt; /tmp/initrd.img
+        sudo find . -print0 | sudo cpio --null -o --format=newc | gzip -9 &gt; /tmp/iso/boot/initrd.img
         
-        ls -lh /tmp/
-    
-    - name: Create boot directory
-      run: |
-        mkdir -p /tmp/iso/boot/grub/i386-pc
-        cp "$HOME/linux-${KERNEL_VERSION}/arch/x86/boot/bzImage" /tmp/iso/boot/vmlinuz
-        cp "$HOME/linux-${KERNEL_VERSION}/System.map" /tmp/iso/boot/System.map
-        cp /tmp/initrd.img /tmp/iso/boot/initrd.img
-        ls -la /tmp/iso/boot/
+        ls -lh /tmp/iso/boot/
     
     - name: Create GRUB configuration
       run: |
@@ -131,14 +113,4 @@ jobs:
       with:
         name: FreeProMemOS-Server-BETA-${VERSION}-ISO
         path: /tmp/FreeProMemOS-Server-BETA-${VERSION}.iso
-        retention-days: 30
-    
-    - name: Upload Kernel
-      uses: actions/upload-artifact@v4
-      with:
-        name: FreeProMemOS-Server-BETA-${VERSION}-Kernel
-        path: |
-          /home/runner/linux-${KERNEL_VERSION}/arch/x86/boot/bzImage
-          /home/runner/linux-${KERNEL_VERSION}/System.map
-          /home/runner/linux-${KERNEL_VERSION}/.config
         retention-days: 30
