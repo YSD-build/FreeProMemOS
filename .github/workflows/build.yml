@@ -1,5 +1,5 @@
 
-name: Build FreeProMemOS BETA
+name: Build FreeProMemOS Server
 
 on:
   push:
@@ -11,7 +11,7 @@ env:
   DISTRO: "ubuntu"
   CODENAME: "jammy"
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-  VERSION: "0.1.0-BETA"
+  VERSION: "0.1.0-Server-BETA"
 
 jobs:
   build:
@@ -67,22 +67,22 @@ jobs:
         make -j$(nproc) bzImage modules
         ls -lh arch/x86/boot/bzImage
     
-    - name: Create Ubuntu base system
+    - name: Create Ubuntu Server base system
       run: |
         sudo mkdir -p /tmp/rootfs
         sudo debootstrap \
-          --include=bash,wget,vim,coreutils,iproute2,iputils-ping,net-tools,procps,systemd,udev,util-linux,ncurses-bin,less,dpkg,apt \
+          --include=bash,wget,vim,coreutils,iproute2,iputils-ping,net-tools,procps,systemd,udev,util-linux,ncurses-bin,less,dpkg,apt,openssh-server,openssh-client,rsync,git,curl,htop,nano,gnupg,lsb-release,software-properties-common,apt-utils,dnsutils,tcpdump,iptables \
           --variant=minbase \
           ${CODENAME} /tmp/rootfs http://archive.ubuntu.com/ubuntu/
         
-        sudo chroot /tmp/rootfs bash -c "echo 'freepromemos' > /etc/hostname"
+        sudo chroot /tmp/rootfs bash -c "echo 'freepromemos-server' > /etc/hostname"
         sudo chroot /tmp/rootfs bash -c "echo '127.0.0.1 localhost' > /etc/hosts"
-        sudo chroot /tmp/rootfs bash -c "echo '127.0.1.1 freepromemos' >> /etc/hosts"
-        sudo chroot /tmp/rootfs bash -c "useradd -m -s /bin/bash user"
-        sudo chroot /tmp/rootfs bash -c "echo 'root:root' | chpasswd"
-        sudo chroot /tmp/rootfs bash -c "echo 'user:user' | chpasswd"
+        sudo chroot /tmp/rootfs bash -c "echo '127.0.1.1 freepromemos-server' >> /etc/hosts"
+        sudo chroot /tmp/rootfs bash -c "useradd -m -s /bin/bash admin"
+        sudo chroot /tmp/rootfs bash -c "echo 'root:freepromemos' | chpasswd"
+        sudo chroot /tmp/rootfs bash -c "echo 'admin:freepromemos' | chpasswd"
         
-        printf '#!/bin/bash\nset -e\nmount -t proc proc /proc\nmount -t sysfs sysfs /sys\nmount -t devtmpfs devtmpfs /dev 2>/dev/null || true\nmount -t tmpfs tmpfs /tmp 2>/dev/null || true\nclear\necho ""\necho "=========================================="\necho "  FreeProMemOS BETA v0.1.0"\necho "=========================================="\necho ""\necho "Linux kernel $(uname -r)"\necho "System architecture: $(uname -m)"\necho ""\necho "Welcome to FreeProMemOS!"\necho ""\necho "This is a lightweight Debian-based system."\necho "Login as: root (password: root)"\necho "          user (password: user)"\necho ""\nexec /bin/bash\n' > /tmp/init.sh
+        printf '#!/bin/bash\nset -e\nmount -t proc proc /proc\nmount -t sysfs sysfs /sys\nmount -t devtmpfs devtmpfs /dev 2>/dev/null || true\nmount -t tmpfs tmpfs /tmp 2>/dev/null || true\nclear\necho ""\necho "=========================================="\necho "  FreeProMemOS Server BETA v0.1.0"\necho "=========================================="\necho ""\necho "Linux kernel $(uname -r)"\necho "System architecture: $(uname -m)"\necho "Hostname: freepromemos-server"\necho ""\necho "Welcome to FreeProMemOS Server!"\necho ""\necho "Default accounts:"\necho "  - root: freepromemos"\necho "  - admin: freepromemos (sudo user)"\necho ""\necho "SSH Server should be available!"\necho ""\nexec /bin/bash\n' > /tmp/init.sh
         
         sudo cp /tmp/init.sh /tmp/rootfs/init
         sudo chmod +x /tmp/rootfs/init
@@ -115,7 +115,7 @@ jobs:
     
     - name: Create GRUB configuration
       run: |
-        printf 'set timeout=10\nset default=0\n\nmenuentry "FreeProMemOS BETA v0.1.0" {\n    linux /boot/vmlinuz root=/dev/ram0 rw init=/init\n    initrd /boot/initrd.img\n}\n\nmenuentry "FreeProMemOS BETA v0.1.0 (Safe Mode)" {\n    linux /boot/vmlinuz root=/dev/ram0 rw init=/init single\n    initrd /boot/initrd.img\n}\n' > /tmp/iso/boot/grub/grub.cfg
+        printf 'set timeout=10\nset default=0\n\nmenuentry "FreeProMemOS Server BETA v0.1.0" {\n    linux /boot/vmlinuz root=/dev/ram0 rw init=/init\n    initrd /boot/initrd.img\n}\n\nmenuentry "FreeProMemOS Server BETA v0.1.0 (Safe Mode)" {\n    linux /boot/vmlinuz root=/dev/ram0 rw init=/init single\n    initrd /boot/initrd.img\n}\n' > /tmp/iso/boot/grub/grub.cfg
         
         ls -la /tmp/iso/boot/grub/
     
@@ -123,21 +123,21 @@ jobs:
       run: |
         cd /tmp
         ls -la iso/
-        grub-mkrescue -o FreeProMemOS-BETA-${VERSION}.iso /tmp/iso
-        ls -lh FreeProMemOS-BETA-${VERSION}.iso
-        file FreeProMemOS-BETA-${VERSION}.iso
+        grub-mkrescue -o FreeProMemOS-Server-BETA-${VERSION}.iso /tmp/iso
+        ls -lh FreeProMemOS-Server-BETA-${VERSION}.iso
+        file FreeProMemOS-Server-BETA-${VERSION}.iso
     
     - name: Upload ISO
       uses: actions/upload-artifact@v4
       with:
-        name: FreeProMemOS-BETA-${VERSION}-ISO
-        path: /tmp/FreeProMemOS-BETA-${VERSION}.iso
+        name: FreeProMemOS-Server-BETA-${VERSION}-ISO
+        path: /tmp/FreeProMemOS-Server-BETA-${VERSION}.iso
         retention-days: 30
     
     - name: Upload Kernel
       uses: actions/upload-artifact@v4
       with:
-        name: FreeProMemOS-BETA-${VERSION}-Kernel
+        name: FreeProMemOS-Server-BETA-${VERSION}-Kernel
         path: |
           /home/runner/linux-${KERNEL_VERSION}/arch/x86/boot/bzImage
           /home/runner/linux-${KERNEL_VERSION}/System.map
