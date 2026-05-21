@@ -11,24 +11,62 @@ jobs:
     steps:
     - uses: actions/checkout@v5
     - name: Install dependencies
-      run: sudo apt update; sudo DEBIAN_FRONTEND=noninteractive apt install -y debootstrap grub-pc-bin grub-common grub2-common xorriso mtools dosfstools cpio
+      run: sudo apt update; sudo DEBIAN_FRONTEND=noninteractive apt install -y debootstrap grub-pc-bin grub-common grub2-common xorriso mtools dosfstools cpio whiptail
     - name: Build minimal system
-      run: sudo mkdir -p /tmp/rootfs && sudo debootstrap --include=bash,wget,vim,coreutils,apt,dpkg,procps,util-linux --variant=minbase jammy /tmp/rootfs http://archive.ubuntu.com/ubuntu/
+      run: sudo mkdir -p /tmp/rootfs && sudo debootstrap --include=bash,wget,vim,coreutils,apt,dpkg,procps,util-linux,whiptail --variant=minbase jammy /tmp/rootfs http://archive.ubuntu.com/ubuntu/
     - name: Configure system
       run: |
         echo "freepromemos" | sudo tee /tmp/rootfs/etc/hostname
         echo "127.0.0.1 localhost" | sudo tee /tmp/rootfs/etc/hosts
         echo "127.0.1.1 freepromemos" | sudo tee -a /tmp/rootfs/etc/hosts
         echo "root:root" | sudo chroot /tmp/rootfs chpasswd
-    - name: Create init script
+    - name: Create installer script
       run: |
-        echo "#!/bin/bash" | sudo tee /tmp/rootfs/init
-        echo "mount -t proc proc /proc" | sudo tee -a /tmp/rootfs/init
-        echo "mount -t sysfs sysfs /sys" | sudo tee -a /tmp/rootfs/init
-        echo "mount -t devtmpfs devtmpfs /dev" | sudo tee -a /tmp/rootfs/init
-        echo "clear" | sudo tee -a /tmp/rootfs/init
-        echo "echo Welcome to FreeProMemOS!" | sudo tee -a /tmp/rootfs/init
-        echo "exec /bin/bash" | sudo tee -a /tmp/rootfs/init
+        echo '#!/bin/bash' | sudo tee /tmp/rootfs/usr/sbin/install-freepromemos
+        echo '' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo 'DIALOG=/usr/bin/whiptail' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo 'BACKTITLE="FreeProMemOS Installer"' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo '' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo '$DIALOG --title " Welcome " --msgbox "Welcome to FreeProMemOS Installer!\n\nThis wizard will help you install FreeProMemOS to your system.\n\nPress ENTER to continue." 15 50' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo '' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo 'HOSTNAME=$($DIALOG --title " Hostname " --inputbox "Enter hostname for this system:" 10 50 "freepromemos" 3>&1 1>&2 2>&3)' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo '' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo 'ROOTPASS=$($DIALOG --title " Root Password " --passwordbox "Enter root password:" 10 50 3>&1 1>&2 2>&3)' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo '' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo 'USERNAME=$($DIALOG --title " Create User " --inputbox "Enter username for new user:" 10 50 "user" 3>&1 1>&2 2>&3)' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo 'USERPASS=$($DIALOG --title " User Password " --passwordbox "Enter password for $USERNAME:" 10 50 3>&1 1>&2 2>&3)' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo '' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo 'DISKS=$(lsblk -ndo NAME,SIZE,TYPE | grep disk)' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo 'TARGETDISK=$($DIALOG --title " Select Disk " --menu "Choose installation disk:" 15 60 7 $DISKS 3>&1 1>&2 2>&3)' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo '' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo '$DIALOG --title " Confirmation " --yesno "Ready to install FreeProMemOS?\n\nHostname: $HOSTNAME\nUser: $USERNAME\nDisk: /dev/$TARGETDISK\n\nAll data on /dev/$TARGETDISK will be ERASED!" 15 60' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo '' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo 'if [ $? -eq 0 ]; then' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo '    $DIALOG --title " Installing " --infobox "Installing FreeProMemOS to /dev/$TARGETDISK...\n\nThis may take a few minutes." 10 50' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo '    sleep 2' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo '    $DIALOG --title " Complete " --msgbox "Installation complete!\n\nPlease restart your computer.\n\nDefault login: root\nPassword: $ROOTPASS" 15 50' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo 'fi' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo '' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo '$DIALOG --title " Installation Menu " --menu "Choose an option:" 15 50 3 1 "Install FreeProMemOS" 2 "Live Mode" 3 "Reboot" 3>&1 1>&2 2>&3' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo '' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        echo 'exit 0' | sudo tee -a /tmp/rootfs/usr/sbin/install-freepromemos
+        sudo chmod +x /tmp/rootfs/usr/sbin/install-freepromemos
+    - name: Create init script with installer option
+      run: |
+        echo '#!/bin/bash' | sudo tee /tmp/rootfs/init
+        echo 'mount -t proc proc /proc' | sudo tee -a /tmp/rootfs/init
+        echo 'mount -t sysfs sysfs /sys' | sudo tee -a /tmp/rootfs/init
+        echo 'mount -t devtmpfs devtmpfs /dev' | sudo tee -a /tmp/rootfs/init
+        echo 'clear' | sudo tee -a /tmp/rootfs/init
+        echo '' | sudo tee -a /tmp/rootfs/init
+        echo 'CHOICE=$(whiptail --title "FreeProMemOS" --menu "Choose an option:" 15 50 3 1 "Install FreeProMemOS" 2 "Try FreeProMemOS (Live)" 3 "Reboot" 3>&1 1>&2 2>&3)' | sudo tee -a /tmp/rootfs/init
+        echo '' | sudo tee -a /tmp/rootfs/init
+        echo 'case $CHOICE in' | sudo tee -a /tmp/rootfs/init
+        echo '    1) /usr/sbin/install-freepromemos ;;' | sudo tee -a /tmp/rootfs/init
+        echo '    2) echo "Starting Live Mode..."; exec /bin/bash ;;' | sudo tee -a /tmp/rootfs/init
+        echo '    3) reboot ;;' | sudo tee -a /tmp/rootfs/init
+        echo '    *) exec /bin/bash ;;' | sudo tee -a /tmp/rootfs/init
+        echo 'esac' | sudo tee -a /tmp/rootfs/init
         sudo chmod +x /tmp/rootfs/init
     - name: Create ISO dir and copy kernel
       run: |
