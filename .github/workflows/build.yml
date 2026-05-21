@@ -7,10 +7,6 @@ on:
   workflow_dispatch:
 
 env:
-  KERNEL_VERSION: "6.8.12"
-  DISTRO: "ubuntu"
-  CODENAME: "jammy"
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   VERSION: "0.1.0-Server-BETA"
 
 jobs:
@@ -40,75 +36,15 @@ jobs:
           debootstrap \
           ca-certificates
     
-    - name: Create minimal Ubuntu base system
-      run: |
-        sudo mkdir -p /tmp/rootfs
-        sudo debootstrap \
-          --include=bash,wget,vim,coreutils,apt,dpkg \
-          --variant=minbase \
-          ${CODENAME} /tmp/rootfs http://archive.ubuntu.com/ubuntu/
-        
-        # Setup hostname and hosts (outside chroot to avoid redirect issues)
-        echo "freepromemos-server" | sudo tee /tmp/rootfs/etc/hostname &gt; /dev/null
-        echo "127.0.0.1 localhost" | sudo tee /tmp/rootfs/etc/hosts &gt; /dev/null
-        echo "127.0.1.1 freepromemos-server" | sudo tee -a /tmp/rootfs/etc/hosts &gt; /dev/null
-        
-        # Create user and set passwords using chroot but no redirects
-        sudo chroot /tmp/rootfs useradd -m -s /bin/bash admin || true
-        echo "root:freepromemos" | sudo chroot /tmp/rootfs chpasswd
-        echo "admin:freepromemos" | sudo chroot /tmp/rootfs chpasswd
-        
-        # Create init script
-        printf '#!/bin/bash\nset -e\nmount -t proc proc /proc 2&gt;/dev/null || true\nmount -t sysfs sysfs /sys 2&gt;/dev/null || true\nmount -t devtmpfs devtmpfs /dev 2&gt;/dev/null || true\nmount -t tmpfs tmpfs /tmp 2&gt;/dev/null || true\nclear\necho ""\necho "=========================================="\necho "  FreeProMemOS Server BETA v0.1.0"\necho "=========================================="\necho ""\necho "Linux kernel $(uname -r)"\necho "System architecture: $(uname -m)"\necho "Hostname: freepromemos-server"\necho ""\necho "Welcome to FreeProMemOS Server!"\necho ""\necho "This is a minimal base system."\necho "Use apt to install additional packages."\necho ""\necho "Default accounts:"\necho "  - root: freepromemos"\necho "  - admin: freepromemos"\necho ""\nexec /bin/bash\n' | sudo tee /tmp/rootfs/init &gt; /dev/null
-        sudo chmod +x /tmp/rootfs/init
-        
-        sudo rm -rf /tmp/rootfs/var/cache/apt/archives/* 2&gt;/dev/null || true
-        sudo rm -rf /tmp/rootfs/var/lib/apt/lists/* 2&gt;/dev/null || true
-        
-        ls -la /tmp/rootfs/
+    - name: Make build script executable
+      run: chmod +x build-server.sh
     
-    - name: Use host system kernel
-      run: |
-        ls -la /boot/
-        KERNEL_IMG=$(ls -1 /boot/vmlinuz-* | head -1)
-        SYSTEM_MAP=$(ls -1 /boot/System.map-* | head -1)
-        echo "KERNEL_IMG=$KERNEL_IMG" &gt;&gt; $GITHUB_ENV
-        echo "SYSTEM_MAP=$SYSTEM_MAP" &gt;&gt; $GITHUB_ENV
-        ls -lh $KERNEL_IMG $SYSTEM_MAP
-    
-    - name: Create boot directory and ISO
-      run: |
-        mkdir -p /tmp/iso/boot/grub/i386-pc
-        cp $KERNEL_IMG /tmp/iso/boot/vmlinuz
-        cp $SYSTEM_MAP /tmp/iso/boot/System.map
-        
-        # Create initramfs
-        mkdir -p /tmp/initramfs
-        sudo cp -a /tmp/rootfs/* /tmp/initramfs/
-        
-        sudo chmod -R 755 /tmp/initramfs 2&gt;/dev/null || true
-        sudo chmod 755 /tmp/initramfs/dev /tmp/initramfs/proc /tmp/initramfs/sys /tmp/initramfs/tmp 2&gt;/dev/null || true
-        
-        cd /tmp/initramfs
-        sudo find . -print0 | sudo cpio --null -o --format=newc | gzip -9 &gt; /tmp/iso/boot/initrd.img
-        
-        ls -lh /tmp/iso/boot/
-        
-        # GRUB configuration
-        printf 'set timeout=10\nset default=0\n\nmenuentry "FreeProMemOS Server BETA v0.1.0" {\n    linux /boot/vmlinuz root=/dev/ram0 rw init=/init\n    initrd /boot/initrd.img\n}\n\nmenuentry "FreeProMemOS Server BETA v0.1.0 (Safe Mode)" {\n    linux /boot/vmlinuz root=/dev/ram0 rw init=/init single\n    initrd /boot/initrd.img\n}\n' | sudo tee /tmp/iso/boot/grub/grub.cfg &gt; /dev/null
-        
-        ls -la /tmp/iso/boot/grub/
-        
-        # Build ISO
-        cd /tmp
-        ls -la iso/
-        grub-mkrescue -o FreeProMemOS-Server-BETA-${VERSION}.iso /tmp/iso
-        ls -lh FreeProMemOS-Server-BETA-${VERSION}.iso
-        file FreeProMemOS-Server-BETA-${VERSION}.iso
+    - name: Build FreeProMemOS
+      run: sudo ./build-server.sh
     
     - name: Upload ISO
       uses: actions/upload-artifact@v4
       with:
-        name: FreeProMemOS-Server-BETA-${VERSION}-ISO
-        path: /tmp/FreeProMemOS-Server-BETA-${VERSION}.iso
+        name: FreeProMemOS-Server-BETA-${{ env.VERSION }}-ISO
+        path: /tmp/FreeProMemOS-Server-BETA-${{ env.VERSION }}.iso
         retention-days: 30
