@@ -13,9 +13,7 @@ jobs:
     - name: Install dependencies
       run: sudo apt update; sudo DEBIAN_FRONTEND=noninteractive apt install -y debootstrap grub-pc-bin grub-common grub2-common xorriso mtools dosfstools cpio
     - name: Build minimal system
-      run: |
-        sudo mkdir -p /tmp/rootfs
-        sudo debootstrap --include=bash,wget,vim,coreutils,apt,dpkg,procps,util-linux --variant=minbase jammy /tmp/rootfs http://archive.ubuntu.com/ubuntu/
+      run: sudo mkdir -p /tmp/rootfs && sudo debootstrap --include=bash,wget,vim,coreutils,apt,dpkg,procps,util-linux --variant=minbase jammy /tmp/rootfs http://archive.ubuntu.com/ubuntu/
     - name: Configure system
       run: |
         echo "freepromemos" | sudo tee /tmp/rootfs/etc/hostname
@@ -38,9 +36,7 @@ jobs:
         KERNEL=$(ls -1 /boot/vmlinuz-* | head -1)
         sudo cp $KERNEL /tmp/iso/boot/vmlinuz
     - name: Create initramfs from rootfs
-      run: |
-        cd /tmp/rootfs
-        sudo find . | sudo cpio -o -H newc | gzip > /tmp/iso/boot/initrd.img
+      run: sudo bash -c "cd /tmp/rootfs && find . | cpio -o -H newc | gzip > /tmp/iso/boot/initrd.img"
     - name: Create grub config
       run: |
         echo "set timeout=10" | sudo tee /tmp/iso/boot/grub/grub.cfg
@@ -51,10 +47,7 @@ jobs:
         echo "    initrd /boot/initrd.img" | sudo tee -a /tmp/iso/boot/grub/grub.cfg
         echo "}" | sudo tee -a /tmp/iso/boot/grub/grub.cfg
     - name: Build ISO
-      run: |
-        cd /tmp
-        sudo grub-mkrescue -o FreeProMemOS.iso iso
-        sudo ls -lh
+      run: sudo grub-mkrescue -o /tmp/FreeProMemOS.iso /tmp/iso && sudo ls -lh /tmp/*.iso
     - name: Upload ISO
       uses: actions/upload-artifact@v4
       with:
