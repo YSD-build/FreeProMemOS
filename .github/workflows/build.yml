@@ -11,25 +11,43 @@ jobs:
     steps:
     - uses: actions/checkout@v5
     - name: Install dependencies
-      run: sudo apt update; sudo DEBIAN_FRONTEND=noninteractive apt install -y debootstrap grub-pc-bin grub-common grub2-common xorriso mtools dosfstools
+      run: sudo apt update; sudo DEBIAN_FRONTEND=noninteractive apt install -y debootstrap grub-pc-bin grub-common grub2-common xorriso mtools dosfstools cpio
     - name: Build minimal system
       run: |
         sudo mkdir -p /tmp/rootfs
-        sudo debootstrap --include=bash,wget,vim,coreutils,apt,dpkg --variant=minbase jammy /tmp/rootfs http://archive.ubuntu.com/ubuntu/
+        sudo debootstrap --include=bash,wget,vim,coreutils,apt,dpkg,procps,util-linux --variant=minbase jammy /tmp/rootfs http://archive.ubuntu.com/ubuntu/
+    - name: Configure system
+      run: |
+        echo "freepromemos" | sudo tee /tmp/rootfs/etc/hostname
+        echo "127.0.0.1 localhost" | sudo tee /tmp/rootfs/etc/hosts
+        echo "127.0.1.1 freepromemos" | sudo tee -a /tmp/rootfs/etc/hosts
+        echo "root:root" | sudo chroot /tmp/rootfs chpasswd
+    - name: Create init script
+      run: |
+        echo "#!/bin/bash" | sudo tee /tmp/rootfs/init
+        echo "mount -t proc proc /proc" | sudo tee -a /tmp/rootfs/init
+        echo "mount -t sysfs sysfs /sys" | sudo tee -a /tmp/rootfs/init
+        echo "mount -t devtmpfs devtmpfs /dev" | sudo tee -a /tmp/rootfs/init
+        echo "clear" | sudo tee -a /tmp/rootfs/init
+        echo "echo Welcome to FreeProMemOS!" | sudo tee -a /tmp/rootfs/init
+        echo "exec /bin/bash" | sudo tee -a /tmp/rootfs/init
+        sudo chmod +x /tmp/rootfs/init
     - name: Create ISO dir and copy kernel
       run: |
         sudo mkdir -p /tmp/iso/boot/grub/i386-pc
         KERNEL=$(ls -1 /boot/vmlinuz-* | head -1)
-        INITRD=$(ls -1 /boot/initrd.img-* 2&gt;/dev/null | head -1)
         sudo cp $KERNEL /tmp/iso/boot/vmlinuz
-        sudo cp $INITRD /tmp/iso/boot/initrd.img
+    - name: Create initramfs from rootfs
+      run: |
+        cd /tmp/rootfs
+        sudo find . | sudo cpio -o -H newc | gzip > /tmp/iso/boot/initrd.img
     - name: Create grub config
       run: |
         echo "set timeout=10" | sudo tee /tmp/iso/boot/grub/grub.cfg
         echo "set default=0" | sudo tee -a /tmp/iso/boot/grub/grub.cfg
         echo "" | sudo tee -a /tmp/iso/boot/grub/grub.cfg
         echo 'menuentry "FreeProMemOS" {' | sudo tee -a /tmp/iso/boot/grub/grub.cfg
-        echo "    linux /boot/vmlinuz boot=casper toram" | sudo tee -a /tmp/iso/boot/grub/grub.cfg
+        echo "    linux /boot/vmlinuz root=/dev/ram0 rw init=/init" | sudo tee -a /tmp/iso/boot/grub/grub.cfg
         echo "    initrd /boot/initrd.img" | sudo tee -a /tmp/iso/boot/grub/grub.cfg
         echo "}" | sudo tee -a /tmp/iso/boot/grub/grub.cfg
     - name: Build ISO
