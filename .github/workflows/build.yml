@@ -1,49 +1,35 @@
 
 name: Build FreeProMemOS
-
 on:
   push:
     branches: [ main, master ]
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-
     steps:
     - uses: actions/checkout@v5
-
     - name: Install dependencies
       run: sudo apt update; sudo DEBIAN_FRONTEND=noninteractive apt install -y debootstrap grub-pc-bin grub-common grub2-common xorriso mtools dosfstools
-
     - name: Build minimal system
       run: |
         sudo mkdir -p /tmp/rootfs
         sudo debootstrap --include=bash,wget,vim,coreutils,apt,dpkg --variant=minbase jammy /tmp/rootfs http://archive.ubuntu.com/ubuntu/
-
-    - name: Create basic files
+    - name: Create ISO dir and copy kernel
       run: |
         sudo mkdir -p /tmp/iso/boot/grub/i386-pc
         KERNEL=$(ls -1 /boot/vmlinuz-* | head -1)
         INITRD=$(ls -1 /boot/initrd.img-* 2&gt;/dev/null | head -1)
         sudo cp $KERNEL /tmp/iso/boot/vmlinuz
         sudo cp $INITRD /tmp/iso/boot/initrd.img
-
+    - name: Create grub config with printf
+      run: sudo printf 'set timeout=10\nset default=0\n\nmenuentry "FreeProMemOS" {\n    linux /boot/vmlinuz boot=casper toram\n    initrd /boot/initrd.img\n}\n' &gt; /tmp/iso/boot/grub/grub.cfg
     - name: Build ISO
       run: |
-        cat &gt; /tmp/iso/boot/grub/grub.cfg &lt;&lt; 'GCFG'
-        set timeout=10
-        set default=0
-        menuentry "FreeProMemOS" {
-            linux /boot/vmlinuz boot=casper toram quiet splash
-            initrd /boot/initrd.img
-        }
-        GCFG
         cd /tmp
-        grub-mkrescue -o FreeProMemOS.iso iso
-        ls -lh
-
+        sudo grub-mkrescue -o FreeProMemOS.iso iso
+        sudo ls -lh
     - name: Upload ISO
       uses: actions/upload-artifact@v4
       with:
