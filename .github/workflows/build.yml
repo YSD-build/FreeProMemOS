@@ -23,8 +23,15 @@ jobs:
         INITRD=$(ls -1 /boot/initrd.img-* 2&gt;/dev/null | head -1)
         sudo cp $KERNEL /tmp/iso/boot/vmlinuz
         sudo cp $INITRD /tmp/iso/boot/initrd.img
-    - name: Create grub config with printf
-      run: sudo printf 'set timeout=10\nset default=0\n\nmenuentry "FreeProMemOS" {\n    linux /boot/vmlinuz boot=casper toram\n    initrd /boot/initrd.img\n}\n' &gt; /tmp/iso/boot/grub/grub.cfg
+    - name: Create grub config
+      run: |
+        echo "set timeout=10" | sudo tee /tmp/iso/boot/grub/grub.cfg
+        echo "set default=0" | sudo tee -a /tmp/iso/boot/grub/grub.cfg
+        echo "" | sudo tee -a /tmp/iso/boot/grub/grub.cfg
+        echo 'menuentry "FreeProMemOS" {' | sudo tee -a /tmp/iso/boot/grub/grub.cfg
+        echo "    linux /boot/vmlinuz boot=casper toram" | sudo tee -a /tmp/iso/boot/grub/grub.cfg
+        echo "    initrd /boot/initrd.img" | sudo tee -a /tmp/iso/boot/grub/grub.cfg
+        echo "}" | sudo tee -a /tmp/iso/boot/grub/grub.cfg
     - name: Build ISO
       run: |
         cd /tmp
